@@ -177,13 +177,13 @@
         <div id="panels">
             <!-- MENU PANEL -->
             <div class="panel active" id="menu-panel">
-                <img src="logo.png" class="logo" alt="Eggag">
+                <img src="logo.png" class="logo" alt="Eggag" draggable="false">
                 <button onclick="playClicked()">PLAY</button>
             </div>
 
             <!-- MODE PANEL -->
             <div class="panel" id="mode-panel">
-                <img src="logo.png" class="logo" alt="Eggag">
+                <img src="logo.png" class="logo" alt="Eggag" draggable="false">
                 <div style="margin-top: 60px; display: flex; flex-direction: column; gap: 30px;">
                     <button onclick="selectMode('timed')">TIMED</button>
                     <button onclick="selectMode('turns')">TURNS</button>
@@ -242,6 +242,7 @@
         let timeLeft = 60;
         let turnsLeft = 30;
         let gameRunning = false;
+        let timerActive = false;
         let lastTime = 0;
         let isDragging = false;
         let highScore = localStorage.getItem('eggagHigh') || 0;
@@ -296,7 +297,7 @@
             }
         }
 
-        // ====================== PANEL SWITCH (with transition lock) ======================
+        // ====================== PANEL SWITCH ======================
         let currentPanelId = 'menu-panel';
 
         function switchPanel(toId) {
@@ -330,7 +331,7 @@
             }, 2050);
         }
 
-        // ====================== GAME INIT ======================
+        // ====================== GAME INIT (delayed) ======================
         function startGame(selectedMode) {
             mode = selectedMode;
             score = 0;
@@ -338,7 +339,8 @@
             particles = [];
             floatTexts = [];
             isDragging = false;
-            gameRunning = true;
+            gameRunning = false;
+            timerActive = false;
 
             initGrid();
 
@@ -357,8 +359,20 @@
 
             switchPanel('game-panel');
 
-            lastTime = performance.now();
-            requestAnimationFrame(gameLoop);
+            // Wait for panel animation to finish before starting eggs + game loop
+            setTimeout(() => {
+                lastTime = performance.now();
+                gameRunning = true;
+                requestAnimationFrame(gameLoop);
+
+                // Eggs now animate in (scales start at 0)
+                // For Timed mode, start the countdown only AFTER eggs have fully popped in
+                if (mode === 'timed') {
+                    setTimeout(() => {
+                        timerActive = true;
+                    }, 450);
+                }
+            }, 2050);
         }
 
         function updateHUD() {
@@ -370,14 +384,21 @@
             }
         }
 
-        // ====================== INPUT HELPERS ======================
+        // ====================== INPUT HELPERS (smaller 50x50 click region) ======================
         function getCell(mx, my) {
             mx -= OFFSET;
             my -= OFFSET;
             const col = Math.floor(mx / CELL);
             const row = Math.floor(my / CELL);
             if (col < 0 || col >= GRID_SIZE || row < 0 || row >= GRID_SIZE) return null;
-            return { r: row, c: col };
+
+            // Check inner 50x50 centered click region (5px dead zone on each side)
+            const localX = mx - col * CELL;
+            const localY = my - row * CELL;
+            if (localX >= 5 && localX <= 55 && localY >= 5 && localY <= 55) {
+                return { r: row, c: col };
+            }
+            return null;
         }
 
         // ====================== DRAG HANDLERS ======================
@@ -515,7 +536,7 @@
                 }
             }
 
-            if (gameRunning && mode === 'timed') {
+            if (gameRunning && mode === 'timed' && timerActive) {
                 timeLeft -= delta / 1000;
                 if (timeLeft <= 0) {
                     timeLeft = 0;
@@ -648,7 +669,7 @@
             switchPanel('menu-panel');
         }
 
-        // ====================== MUSIC AUTO-START ON FIRST CLICK ======================
+        // ====================== MUSIC AUTO-START ======================
         document.addEventListener('click', function initMusic() {
             const musicEl = document.getElementById('music');
             musicEl.volume = 0.6;
