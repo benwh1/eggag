@@ -124,6 +124,7 @@
             height: 330px;
             image-rendering: pixelated;
             background: transparent;
+            touch-action: none; /* Prevents browser default touch behaviors (scroll, zoom) */
         }
 
         #game-header {
@@ -400,13 +401,8 @@
             return null;
         }
 
-        // ====================== DRAG HANDLERS (now respect gameEnding) ======================
-        function handleGlobalMouseMove(e) {
-            if (!isDragging || !gameRunning || gameEnding) return;
-
-            const rect = CANVAS.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
+        // ====================== DRAG HELPERS (mouse + touch support) ======================
+        function processDragMove(mx, my) {
             const cell = getCell(mx, my);
             if (!cell) return;
 
@@ -424,7 +420,7 @@
             }
         }
 
-        function handleGlobalMouseUp() {
+        function processDragEnd() {
             if (!isDragging || !gameRunning || gameEnding) return;
             isDragging = false;
 
@@ -482,6 +478,20 @@
             currentChain = [];
         }
 
+        // Mouse handlers (updated to use helpers)
+        function handleGlobalMouseMove(e) {
+            if (!isDragging || !gameRunning || gameEnding) return;
+
+            const rect = CANVAS.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            processDragMove(mx, my);
+        }
+
+        function handleGlobalMouseUp() {
+            processDragEnd();
+        }
+
         CANVAS.addEventListener('mousedown', e => {
             if (!gameRunning || gameEnding) return;
             const rect = CANVAS.getBoundingClientRect();
@@ -497,6 +507,43 @@
 
         document.addEventListener('mousemove', handleGlobalMouseMove);
         document.addEventListener('mouseup', handleGlobalMouseUp);
+
+        // Touch handlers (full touchscreen support)
+        function handleTouchStart(e) {
+            if (!gameRunning || gameEnding) return;
+            e.preventDefault(); // Stops mouse emulation + unwanted browser behaviors
+
+            const touch = e.touches[0];
+            const rect = CANVAS.getBoundingClientRect();
+            const mx = touch.clientX - rect.left;
+            const my = touch.clientY - rect.top;
+            const cell = getCell(mx, my);
+            if (!cell) return;
+
+            isDragging = true;
+            currentChain = [cell];
+            playEggSound();
+        }
+
+        function handleGlobalTouchMove(e) {
+            if (!isDragging || !gameRunning || gameEnding) return;
+            e.preventDefault(); // Prevents page scroll/zoom while dragging
+
+            const touch = e.touches[0];
+            const rect = CANVAS.getBoundingClientRect();
+            const mx = touch.clientX - rect.left;
+            const my = touch.clientY - rect.top;
+            processDragMove(mx, my);
+        }
+
+        function handleGlobalTouchEnd(e) {
+            processDragEnd();
+        }
+
+        CANVAS.addEventListener('touchstart', handleTouchStart, { passive: false });
+        document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
+        document.addEventListener('touchend', handleGlobalTouchEnd);
+        document.addEventListener('touchcancel', handleGlobalTouchEnd);
 
         APP.addEventListener('click', e => {
             if (e.target.closest('#board-container')) return;
