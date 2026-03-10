@@ -123,6 +123,7 @@
             width: 330px;
             height: 330px;
             image-rendering: pixelated;
+            background: transparent;
         }
 
         #game-header {
@@ -243,6 +244,7 @@
         let turnsLeft = 30;
         let gameRunning = false;
         let timerActive = false;
+        let gameEnding = false;
         let lastTime = 0;
         let isDragging = false;
         let highScore = localStorage.getItem('eggagHigh') || 0;
@@ -331,7 +333,7 @@
             }, 2050);
         }
 
-        // ====================== GAME INIT (delayed) ======================
+        // ====================== GAME INIT ======================
         function startGame(selectedMode) {
             mode = selectedMode;
             score = 0;
@@ -341,6 +343,7 @@
             isDragging = false;
             gameRunning = false;
             timerActive = false;
+            gameEnding = false;
 
             initGrid();
 
@@ -359,14 +362,11 @@
 
             switchPanel('game-panel');
 
-            // Wait for panel animation to finish before starting eggs + game loop
             setTimeout(() => {
                 lastTime = performance.now();
                 gameRunning = true;
                 requestAnimationFrame(gameLoop);
 
-                // Eggs now animate in (scales start at 0)
-                // For Timed mode, start the countdown only AFTER eggs have fully popped in
                 if (mode === 'timed') {
                     setTimeout(() => {
                         timerActive = true;
@@ -384,7 +384,7 @@
             }
         }
 
-        // ====================== INPUT HELPERS (smaller 50x50 click region) ======================
+        // ====================== INPUT HELPERS ======================
         function getCell(mx, my) {
             mx -= OFFSET;
             my -= OFFSET;
@@ -392,7 +392,6 @@
             const row = Math.floor(my / CELL);
             if (col < 0 || col >= GRID_SIZE || row < 0 || row >= GRID_SIZE) return null;
 
-            // Check inner 50x50 centered click region (5px dead zone on each side)
             const localX = mx - col * CELL;
             const localY = my - row * CELL;
             if (localX >= 5 && localX <= 55 && localY >= 5 && localY <= 55) {
@@ -401,9 +400,9 @@
             return null;
         }
 
-        // ====================== DRAG HANDLERS ======================
+        // ====================== DRAG HANDLERS (now respect gameEnding) ======================
         function handleGlobalMouseMove(e) {
-            if (!isDragging || !gameRunning) return;
+            if (!isDragging || !gameRunning || gameEnding) return;
 
             const rect = CANVAS.getBoundingClientRect();
             const mx = e.clientX - rect.left;
@@ -426,7 +425,7 @@
         }
 
         function handleGlobalMouseUp() {
-            if (!isDragging || !gameRunning) return;
+            if (!isDragging || !gameRunning || gameEnding) return;
             isDragging = false;
 
             if (currentChain.length >= 2) {
@@ -475,6 +474,7 @@
                     turnsLeft--;
                     updateHUD();
                     if (turnsLeft <= 0) {
+                        gameEnding = true;
                         setTimeout(endGame, 1200);
                     }
                 }
@@ -483,7 +483,7 @@
         }
 
         CANVAS.addEventListener('mousedown', e => {
-            if (!gameRunning) return;
+            if (!gameRunning || gameEnding) return;
             const rect = CANVAS.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
@@ -546,10 +546,9 @@
             }
         }
 
-        // ====================== DRAW ======================
+        // ====================== DRAW (board removed from canvas) ======================
         function draw(now) {
             CTX.clearRect(0, 0, WIDTH, HEIGHT);
-            CTX.drawImage(images.board, 0, 0, WIDTH, HEIGHT);
 
             if (currentChain.length > 1) {
                 CTX.strokeStyle = '#ffffff';
@@ -639,6 +638,7 @@
         // ====================== GAME OVER ======================
         function endGame() {
             gameRunning = false;
+            gameEnding = false;
             const finalScoreEl = document.getElementById('final-score');
             const highScoreEl = document.getElementById('high-score');
 
